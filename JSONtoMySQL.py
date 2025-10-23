@@ -328,7 +328,6 @@ class JSONtoMySQL:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager support - ensures connection is closed."""
         self.close()
-
 class ImporterGUI:
     """
     Graphical user interface for the JSON to MySQL importer.
