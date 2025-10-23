@@ -32,8 +32,13 @@
     <Content Include="Deployment\Documentation\Sample_JSON\Alliance_Exception_warrant.json" />
     <Content Include="Deployment\Executable\importer_config.json" />
     <Content Include="Deployment\Documentation\README.MD" />
+    <Content Include="Documentation\Sample1.json" />
+    <Content Include="Documentation\Sample2.json" />
+    <Content Include="Documentation\Sample3.json" />
+    <Content Include="Documentation\Sample4.json" />
+    <Content Include="Documentation\Sample5.json" />
     <Content Include="JSONtoMySQL.spec" />
-    <Content Include="MSSQLVersionOfExport.sql" />
+    <Content Include="Documentation\MSSQLVersionOfExport.sql" />
     <Content Include="README.MD" />
     <Content Include="requirements.txt" />
     <Content Include="run.bat" />
@@ -44,6 +49,7 @@
     <Folder Include="Deployment\Documentation\Sample_JSON\" />
     <Folder Include="Deployment\Executable\" />
     <Folder Include="Deployment\Source\" />
+    <Folder Include="Documentation\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
