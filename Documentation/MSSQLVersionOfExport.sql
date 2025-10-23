@@ -1,3 +1,7 @@
+--THIS IS THE MSSQL VERSION OF WHAT WE NEED TO DO WITH MYSQL
+--THIS IS FOR CLAUDE CODE TO USE FOR COMPAIRSON
+
+
 set nocount on
 set transaction isolation level read uncommitted
 go
