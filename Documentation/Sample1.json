@@ -1,0 +1,13 @@
+{
+	"CommunityId":"01J426NNSJECDE9K9NTV620TTV",
+	"Entities":
+	[
+			{"Entity":[{"system":"6BESriNk5FMgbYHfXey23Y","type":"hearing","applicationId":"16608470"},{"system":"4UPaPj834TL1EQPPDHcuJv","type":"hearing","applicationId":"102816965"}]},
+			{"Entity":[{"system":"6BESriNk5FMgbYHfXey23Y","type":"hearing","applicationId":"16608675"},{"system":"4UPaPj834TL1EQPPDHcuJv","type":"hearing","applicationId":"102816970"}]},
+			{"Entity":[{"system":"6BESriNk5FMgbYHfXey23Y","type":"hearing","applicationId":"16608807"},{"system":"4UPaPj834TL1EQPPDHcuJv","type":"hearing","applicationId":"102840660"}]},
+			{"Entity":[{"system":"6BESriNk5FMgbYHfXey23Y","type":"hearing","applicationId":"16609158"},{"system":"4UPaPj834TL1EQPPDHcuJv","type":"hearing","applicationId":"102840739"}]},
+			{"Entity":[{"system":"6BESriNk5FMgbYHfXey23Y","type":"hearing","applicationId":"16609163"},{"system":"4UPaPj834TL1EQPPDHcuJv","type":"hearing","applicationId":"102841169"}]},
+			{"Entity":[{"system":"6BESriNk5FMgbYHfXey23Y","type":"hearing","applicationId":"16609243"},{"system":"4UPaPj834TL1EQPPDHcuJv","type":"hearing","applicationId":"102820388"}]},
+			{"Entity":[{"system":"6BESriNk5FMgbYHfXey23Y","type":"hearing","applicationId":"16698996"},{"system":"4UPaPj834TL1EQPPDHcuJv","type":"hearing","applicationId":"123528104"}]}
+	]
+}
