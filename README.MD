@@ -295,10 +295,10 @@ Each JSON file import is wrapped in a database transaction:
     ```
 
 This means:
-    - ✅ If import succeeds: table is created and populated
-    - ✅ If import fails: NO table is created, database unchanged
-    - ✅ Partial imports are impossible
-    - ✅ Database always remains in a consistent state
+    - ## If import succeeds: table is created and populated
+    - ## If import fails: NO table is created, database unchanged
+    - ## Partial imports are impossible
+    - ## Database always remains in a consistent state
 
 ### File Independence
 

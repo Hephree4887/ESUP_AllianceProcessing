@@ -1,0 +1,212 @@
+﻿JSON ↔ MySQL Converter - Version 3.0
+Release Date: 2025-10-29
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                             MAJOR UPDATE                                     ║
+║                      NEW: Export Functionality Added                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+WHAT'S NEW IN VERSION 3.0:
+
+##  EXPORT FUNCTIONALITY
+   - Export PostScript_AllianceMerge_NEW table to JSON files
+   - Generates Alliance Community Bridge (ACB) compatible format
+   - Batched export (2500 entity groups per file)
+   - Project-based file naming (e.g., ILKane1.json, ILKane2.json)
+   - Entity grouping by EntityID for proper relationship structure
+   
+##  BIDIRECTIONAL OPERATIONS
+   - Single tool now handles both import and export
+   - Unified working directory selection
+   - Streamlined UI with two operation buttons
+   - Window title updated to "JSON ↔ MySQL Converter"
+
+##  ENHANCED USER EXPERIENCE
+   - Project name prompt for exports (State_County format)
+   - Real-time progress tracking for exports
+   - Comprehensive export summaries
+   - Detailed status logging for both operations
+
+EXISTING FEATURES (FROM VERSION 2.0):
+
+## IMPORT OPERATIONS
+   - Automatic schema inference from JSON files
+   - Transaction safety (atomic imports)
+   - Smart type mapping (JSON → MySQL)
+   - Batch processing of multiple files
+   - Progress tracking and detailed summaries
+
+## CONNECTION MANAGEMENT
+   - Pre-flight connection testing
+   - Connection verification before operations
+   - Configuration persistence (host/port only)
+   - Secure credential handling (never saved)
+
+## ERROR HANDLING
+   - Comprehensive error reporting
+   - Transaction rollback on failures
+   - Detailed failure logging
+   - Operation summaries with success/failure counts
+
+SYSTEM REQUIREMENTS:
+   - Windows 7 or newer
+   - Network access to MySQL server
+   - No Python installation needed for .exe version
+   - For developers: Python 3.6+, mysql-connector-python 8.4
+
+QUICK START FOR MOST USERS:
+   1. Navigate to Executable folder
+   2. Double-click JSONtoMySQL.exe
+   3. Enter connection details and test connection
+   4. Select working directory
+   5. Choose operation:
+      • Import: Click "Import JSON Exception Files from EJ"
+      • Export: Click "Export PostScript_AllianceMerge to JSON Files"
+   6. Monitor progress and review summary
+
+EXPORT OPERATION DETAILS:
+
+   Prerequisites:
+   • Database must contain table: PostScript_AllianceMerge_NEW
+   • Table must have columns: EntityID, ApplicationID, EntityType, 
+     TargetID, SourceIDValue, CommunityID
+   
+   Output Format:
+   • Alliance Community Bridge (ACB) JSON structure
+   • Nested entities grouped by EntityID
+   • CommunityId at root level
+   • Entities array with Entity sub-arrays
+   
+   File Naming:
+   • User provides project name (e.g., "ILKane")
+   • Files numbered sequentially: ILKane1.json, ILKane2.json, etc.
+   • Default batch size: 2500 entity groups per file
+   
+   Process:
+   1. Click Export button
+   2. Enter project name when prompted
+   3. Monitor progress bar and status window
+   4. Review export summary
+   5. Verify generated JSON files in working directory
+
+IMPORT OPERATION DETAILS:
+
+   File Requirements:
+   • JSON files in working directory
+   • Filename becomes table name (without .json extension)
+   • Supports single objects or arrays of objects
+   • Handles varying fields across records
+   
+   Behavior:
+   • DROPS and RECREATES tables with matching names
+   • Creates auto-increment id column (primary key)
+   • Columns ordered alphabetically
+   • NULL values for missing fields
+   • Atomic transactions (all-or-nothing)
+   
+   Data Types:
+   • Automatic inference from JSON values
+   • Nested structures → JSON column type
+   • Strings → VARCHAR(255) or TEXT
+   • Numbers → INT, BIGINT, or DOUBLE
+   • Booleans → BOOLEAN
+   • NULLs → TEXT
+
+IMPORTANT NOTES:
+
+   ##   IMPORT WARNING:
+   This tool DROPS and RECREATES tables with matching filenames.
+   Always verify you're connected to the correct database.
+   Recommended for conversion/staging databases only.
+
+   ##   EXPORT PREREQUISITE:
+   Export requires PostScript_AllianceMerge_NEW table to exist
+   with the proper schema. Verify table exists before export.
+
+   ## SECURITY:
+   Only host and port are saved between sessions.
+   Credentials (username, password, database) are never persisted.
+
+   ## TRANSACTION SAFETY:
+   - Import: Each file is atomic (commit or rollback)
+   - Export: Read-only operations, no database modifications
+
+PERFORMANCE EXPECTATIONS:
+
+   Import:
+       • Local files: ~1000-1500 records/second
+       • Network files: ~500-1000 records/second
+       • Large files (>1GB) may have reduced performance
+   
+   Export:
+       • Typical: ~1000-2000 entities/second
+       • Depends on entity complexity and network speed
+       • Progress updates after each batch file created
+
+TROUBLESHOOTING:
+
+   Common Issues:
+       • Connection Failed → Verify credentials, network, database exists
+       • No JSON Files Found → Check directory, file extensions (.json)
+       • No Entities Found → Verify PostScript_AllianceMerge_NEW table exists
+       • Buttons Disabled → Test connection first, select directory
+       • Slow Performance → Check network drive vs local, file sizes
+
+   For detailed troubleshooting, see README.MD
+
+UPGRADE NOTES:
+
+   From Version 2.0:
+       • No breaking changes to import functionality
+       • Export is a new feature, no migration needed
+       • Configuration file format unchanged
+       • Executable name unchanged (JSONtoMySQL.exe)
+       • GUI layout enhanced but familiar
+
+KNOWN LIMITATIONS:
+
+   Import:
+       • Entire JSON file loaded into memory
+       • Table names must be valid MySQL identifiers
+       • No append mode (always drops/recreates)
+   
+   Export:
+       • Fixed table name: PostScript_AllianceMerge_NEW
+       • Fixed batch size: 2500 entities (not GUI-configurable)
+       • ACB format only, not customizable
+       • Entire batch loaded into memory
+
+FUTURE ENHANCEMENTS UNDER CONSIDERATION:
+
+   • Configurable export batch size via GUI
+   • Custom table selection for export
+   • Multiple export format options
+   • Append mode for imports
+   • Scheduled/automated operations
+   • Export filtering by date range or criteria
+
+FOR SUPPORT:
+   Contact:  Jeff Reichert
+   Email:    jeff.reichert@tylertech.com
+   Team:     ESUP Conversion
+
+DOCUMENTATION:
+   Full documentation: See README.MD in Documentation folder
+   Sample files: Documentation/Sample_JSON folder
+   Source code: Available in Source folder
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Thank you for using JSON ↔ MySQL Converter!
+
+This tool is built by the ESUP Conversion team to streamline your data 
+conversion workflows. We welcome your feedback and suggestions for improvement.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Version History:
+   • v3.0 (2025-10-29) - Added export functionality, bidirectional operations
+   • v2.0 (2025-10-07) - Connection testing, progress tracking, summaries
+   • v1.0 (Initial)    - Basic JSON to MySQL import functionality
+
+═══════════════════════════════════════════════════════════════════════════════
