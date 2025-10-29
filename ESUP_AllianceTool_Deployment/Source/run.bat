@@ -13,6 +13,7 @@ if errorlevel 1 (
     echo [ERROR] Python is not installed or not in PATH
     echo Please install Python 3.6 or higher from https://www.python.org/downloads/
     echo Make sure to check "Add Python to PATH" during installation
+	echo NOTE: IF YOU DO NOT WANT TO INSTALL PYTHON YOU CAN JUST USE THE .EXE UNDER THE EXECUTABLE FOLDER.
     echo.
     pause
     exit /b 1
@@ -22,6 +23,7 @@ REM Check Python version (needs 3.6 or higher)
 python -c "import sys; sys.exit(0 if sys.version_info >= (3,6) else 1)" >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Python 3.6 or higher is required
+	echo NOTE: IF YOU DO NOT WANT TO INSTALL PYTHON 3.6 OR GREATER YOU CAN JUST USE THE .EXE UNDER THE EXECUTABLE FOLDER.
     echo Current version:
     python --version
     echo.
@@ -34,6 +36,7 @@ pip --version >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] pip is not installed or not in PATH
     echo Please install pip or repair your Python installation
+	echo NOTE: IF YOU DO NOT WANT TO INSTALL PIP YOU CAN JUST USE THE .EXE UNDER THE EXECUTABLE FOLDER.
     echo.
     pause
     exit /b 1

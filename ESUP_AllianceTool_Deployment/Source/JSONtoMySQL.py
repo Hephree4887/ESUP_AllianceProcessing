@@ -1,10 +1,11 @@
 ﻿import mysql.connector
 import json
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext, ttk
+from tkinter import filedialog, messagebox, scrolledtext, ttk, simpledialog
 from pathlib import Path
 import threading
 from typing import Dict, List, Tuple, Any, Optional
+import os
 
 
 class JSONtoMySQL:
@@ -34,6 +35,7 @@ class JSONtoMySQL:
         )
         self.cursor = self.connection.cursor()
         self.log("Database connection established")
+    
     def log(self, message: str):
         """
         Send status messages to callback if provided, always print to console.
@@ -41,6 +43,7 @@ class JSONtoMySQL:
         if self.status_callback:
             self.status_callback(message)
         print(message)
+    
     def _determine_column_type(self, values: List[Any]) -> str:
         """
         Determine the most appropriate MySQL column type for a list of values.
@@ -100,6 +103,7 @@ class JSONtoMySQL:
         
         # Default fallback
         return "TEXT"
+    
     def create_table_from_json(self, table_name: str, json_data: List[Dict]) -> Tuple[bool, List[str]]:
         """
         Create MySQL table based on JSON data structure.
@@ -159,6 +163,7 @@ class JSONtoMySQL:
         
         # Return success and the column order for INSERT statements
         return True, sorted_columns
+    
     def insert_json_data(self, table_name: str, json_data: List[Dict], columns: List[str]):
         """
         Insert JSON records into the specified table.
@@ -189,6 +194,7 @@ class JSONtoMySQL:
         # Execute batch insert - more efficient than inserting one row at a time
         self.cursor.executemany(insert_sql, values)
         self.log(f"Inserted {len(values)} records into {table_name}")
+    
     def import_json_file(self, json_file_path: str) -> Tuple[bool, str]:
         """
         Import a single JSON file into a MySQL table.
@@ -252,6 +258,7 @@ class JSONtoMySQL:
             error_msg = f"ERROR importing {json_file_path}: {str(e)}"
             self.log(error_msg)
             return False, error_msg
+    
     def import_directory(self, directory_path: str) -> Dict[str, Any]:
         """
         Import all JSON files from a directory.
@@ -317,26 +324,318 @@ class JSONtoMySQL:
             'success_files': successful_imports,
             'failed_files': failed_imports
         }
+    
     def close(self):
         """Close database connection and clean up resources."""
         self.cursor.close()
         self.connection.close()
         self.log("Database connection closed")
+    
     def __enter__(self):
         """Context manager support - enables 'with' statement usage."""
         return self
+    
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager support - ensures connection is closed."""
         self.close()
-
-
+class MySQLToJSON:
+    """
+    Handles the business logic for exporting MySQL PostScript_AllianceMerge table to JSON files.
+    
+    This class reads from the PostScript_AllianceMerge table, groups records by EntityID,
+    and exports them in batches of 2500 entity groups per JSON file. The output format
+    matches the Alliance Community Bridge (ACB) JSON structure with nested entities.
+    """
+    
+    def __init__(self, host: str, user: str, password: str, database: str,
+                 port: int = 3306, status_callback=None):
+        """
+        Initialize database connection for export operations.
+        
+        Args:
+            host: MySQL server hostname
+            user: MySQL username
+            password: MySQL password
+            database: Database name containing PostScript_AllianceMerge table
+            port: MySQL port (default 3306)
+            status_callback: Optional callback function for status messages
+        """
+        self.status_callback = status_callback
+        self.connection = mysql.connector.connect(
+            host=host,
+            user=user,
+            password=password,
+            database=database,
+            port=port,
+            connect_timeout=10,
+            autocommit=False
+        )
+        self.cursor = self.connection.cursor(dictionary=True)
+        self.log("Database connection established for export")
+    
+    def log(self, message: str):
+        """
+        Send status messages to callback if provided, always print to console.
+        """
+        if self.status_callback:
+            self.status_callback(message)
+        print(message)
+    
+    def get_entity_count(self) -> int:
+        """
+        Get the count of distinct EntityIDs in the PostScript_AllianceMerge table.
+        
+        Returns:
+            Integer count of unique entities
+        """
+        query = "SELECT COUNT(DISTINCT EntityID) as entity_count FROM PostScript_AllianceMerge_NEW"
+        self.cursor.execute(query)
+        result = self.cursor.fetchone()
+        return result['entity_count'] if result else 0
+    
+    def get_entity_id_range(self, offset: int, limit: int) -> List[int]:
+        """
+        Get a batch of EntityIDs for processing.
+        
+        This query gets a specific range of distinct EntityIDs, which we'll then use
+        to fetch all records associated with those entities. This is how we batch
+        the export into files of 2500 entity groups.
+        
+        Args:
+            offset: Starting position in the sorted list of EntityIDs
+            limit: Number of EntityIDs to retrieve
+        
+        Returns:
+            List of EntityID values
+        """
+        query = """
+            SELECT DISTINCT EntityID 
+            FROM PostScript_AllianceMerge_NEW 
+            ORDER BY EntityID 
+            LIMIT %s OFFSET %s
+        """
+        self.cursor.execute(query, (limit, offset))
+        results = self.cursor.fetchall()
+        return [row['EntityID'] for row in results]
+    
+    def get_records_for_entities(self, entity_ids: List[int]) -> List[Dict]:
+        """
+        Fetch all records for a given list of EntityIDs.
+        
+        Args:
+            entity_ids: List of EntityID values to fetch
+        
+        Returns:
+            List of dictionaries containing the record data
+        """
+        if not entity_ids:
+            return []
+        
+        # Build the IN clause with proper parameterization
+        placeholders = ','.join(['%s'] * len(entity_ids))
+        query = f"""
+            SELECT EntityID, ApplicationID, EntityType, TargetID, SourceIDValue, CommunityID
+            FROM PostScript_AllianceMerge_NEW
+            WHERE EntityID IN ({placeholders})
+            ORDER BY EntityID, ApplicationID
+        """
+        
+        self.cursor.execute(query, entity_ids)
+        return self.cursor.fetchall()
+    
+    def build_json_structure(self, records: List[Dict]) -> Dict:
+        """
+        Transform flat database records into the nested JSON structure required by ACB.
+        
+        The structure is:
+        {
+            "CommunityId": "...",
+            "Entities": [
+                {
+                    "Entity": [
+                        {"system": "...", "type": "...", "applicationId": "...", "correlationId": "..."},
+                        ...
+                    ]
+                },
+                ...
+            ]
+        }
+        
+        Args:
+            records: List of flat database records
+        
+        Returns:
+            Dictionary representing the complete JSON structure
+        """
+        if not records:
+            return {}
+        
+        # Get CommunityID from first record (should be same for all records in batch)
+        community_id = records[0]['CommunityID']
+        
+        # Group records by EntityID
+        # This creates a dictionary where keys are EntityIDs and values are lists of records
+        entities_by_id = {}
+        for record in records:
+            entity_id = record['EntityID']
+            if entity_id not in entities_by_id:
+                entities_by_id[entity_id] = []
+            entities_by_id[entity_id].append(record)
+        
+        # Build the Entities array
+        entities_array = []
+        for entity_id in sorted(entities_by_id.keys()):
+            entity_records = entities_by_id[entity_id]
+            
+            # Build the Entity array for this EntityID
+            # Each record becomes one item in the Entity array
+            entity_array = []
+            for record in entity_records:
+                entity_item = {
+                    "system": record['ApplicationID'],
+                    "type": record['EntityType'],
+                    "applicationId": record['TargetID']
+                }
+                
+                # Only include correlationId if SourceIDValue has a value
+                # This matches the pattern in Sample1.json where some entities have it and others don't
+                if record['SourceIDValue']:
+                    entity_item['correlationId'] = record['SourceIDValue']
+                
+                entity_array.append(entity_item)
+            
+            # Add this entity group to the Entities array
+            entities_array.append({"Entity": entity_array})
+        
+        # Build the complete structure
+        return {
+            "CommunityId": community_id,
+            "Entities": entities_array
+        }
+    
+    def export_to_json_files(self, output_directory: str, file_prefix: str, 
+                            batch_size: int = 2500) -> Dict[str, Any]:
+        """
+        Export PostScript_AllianceMerge table to batched JSON files.
+        
+        This is the main export method that orchestrates the entire process:
+        1. Count total entities
+        2. Calculate number of batch files needed
+        3. For each batch:
+           - Fetch the EntityIDs for this batch
+           - Fetch all records for those EntityIDs
+           - Build the nested JSON structure
+           - Write to file
+        
+        Args:
+            output_directory: Directory path where JSON files will be written
+            file_prefix: Filename prefix (e.g., "ILKane" results in "ILKane1.json")
+            batch_size: Number of entity groups per file (default 2500)
+        
+        Returns:
+            Dictionary with export statistics
+        """
+        try:
+            # Ensure output directory exists
+            os.makedirs(output_directory, exist_ok=True)
+            
+            # Get total entity count
+            total_entities = self.get_entity_count()
+            
+            if total_entities == 0:
+                self.log("No entities found in PostScript_AllianceMerge table")
+                return {
+                    'total_entities': 0,
+                    'files_created': 0,
+                    'success': False,
+                    'error': 'No data to export'
+                }
+            
+            self.log(f"Found {total_entities} entities to export")
+            
+            # Calculate number of files needed
+            num_files = (total_entities + batch_size - 1) // batch_size
+            self.log(f"Will create {num_files} JSON file(s) with {batch_size} entities each")
+            
+            files_created = []
+            
+            # Process each batch
+            for file_num in range(1, num_files + 1):
+                self.log(f"\nProcessing batch {file_num} of {num_files}...")
+                
+                # Calculate offset for this batch
+                offset = (file_num - 1) * batch_size
+                
+                # Get the EntityIDs for this batch
+                entity_ids = self.get_entity_id_range(offset, batch_size)
+                self.log(f"Retrieved {len(entity_ids)} entity IDs for batch {file_num}")
+                
+                # Get all records for these EntityIDs
+                records = self.get_records_for_entities(entity_ids)
+                self.log(f"Retrieved {len(records)} total records for batch {file_num}")
+                
+                # Build the JSON structure
+                json_structure = self.build_json_structure(records)
+                
+                # Write to file
+                filename = f"{file_prefix}{file_num}.json"
+                filepath = os.path.join(output_directory, filename)
+                
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    json.dump(json_structure, f, indent=2, ensure_ascii=False)
+                
+                files_created.append(filename)
+                self.log(f"Created file: {filename} with {len(json_structure.get('Entities', []))} entities")
+            
+            # Log summary
+            self.log("\n" + "="*60)
+            self.log("EXPORT SUMMARY")
+            self.log("="*60)
+            self.log(f"Total entities processed: {total_entities}")
+            self.log(f"Files created: {len(files_created)}")
+            self.log(f"Output directory: {output_directory}")
+            self.log("\nFiles created:")
+            for filename in files_created:
+                self.log(f"  - {filename}")
+            self.log("="*60)
+            
+            return {
+                'total_entities': total_entities,
+                'files_created': len(files_created),
+                'filenames': files_created,
+                'success': True
+            }
+            
+        except Exception as e:
+            error_msg = f"ERROR during export: {str(e)}"
+            self.log(error_msg)
+            return {
+                'total_entities': 0,
+                'files_created': 0,
+                'success': False,
+                'error': str(e)
+            }
+    
+    def close(self):
+        """Close database connection and clean up resources."""
+        self.cursor.close()
+        self.connection.close()
+        self.log("Database connection closed")
+    
+    def __enter__(self):
+        """Context manager support - enables 'with' statement usage."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager support - ensures connection is closed."""
+        self.close()
 class ImporterGUI:
     """
-    Graphical user interface for the JSON to MySQL importer.
+    Graphical user interface for the JSON to MySQL importer and MySQL to JSON exporter.
     
     This class handles all UI interactions and delegates business logic
-    to the JSONtoMySQL class. It follows the Model-View pattern where
-    JSONtoMySQL is the Model and this class is the View.
+    to the JSONtoMySQL and MySQLToJSON classes. It follows the Model-View pattern where
+    those classes are the Models and this class is the View.
     """
     
     # Configuration file for saving connection settings
@@ -345,8 +644,8 @@ class ImporterGUI:
     def __init__(self, root):
         """Initialize the GUI components."""
         self.root = root
-        self.root.title("JSON to MySQL Importer")
-        self.root.geometry("650x700")
+        self.root.title("JSON ↔ MySQL Converter")
+        self.root.geometry("650x900")
         self.root.resizable(False, False)
         
         # Connection state tracking
@@ -363,8 +662,9 @@ class ImporterGUI:
         # Load saved configuration
         self.load_config()
         
-        # Initial state - disable import button
-        self.update_import_button_state()
+        # Initial state - disable import and export buttons
+        self.update_button_states()
+    
     def create_connection_frame(self):
         """Create database connection input fields."""
         frame = tk.LabelFrame(self.root, text="Database Connection", padx=10, pady=10)
@@ -402,6 +702,7 @@ class ImporterGUI:
         self.database_entry = tk.Entry(frame, width=40)
         self.database_entry.grid(row=4, column=1, pady=5)
         self.database_entry.bind('<KeyRelease>', self.on_connection_field_changed)
+    
     def create_test_connection_button(self):
         """Create test connection button."""
         frame = tk.Frame(self.root)
@@ -426,18 +727,20 @@ class ImporterGUI:
             fg="gray"
         )
         self.conn_status_label.pack(pady=2)
+    
     def create_directory_frame(self):
-        """Create directory selection."""
-        frame = tk.LabelFrame(self.root, text="JSON Files Location", padx=10, pady=10)
+        """Create directory selection - used for both import source and export destination."""
+        frame = tk.LabelFrame(self.root, text="Working Directory", padx=10, pady=10)
         frame.pack(padx=10, pady=10, fill="x")
         
         self.directory_var = tk.StringVar()
-        self.directory_var.trace('w', lambda *args: self.update_import_button_state())
+        self.directory_var.trace('w', lambda *args: self.update_button_states())
         
         tk.Entry(frame, textvariable=self.directory_var, width=50, state="readonly").pack(side="left", padx=5)
         tk.Button(frame, text="Browse...", command=self.browse_directory, width=10).pack(side="left")
+    
     def create_progress_bar(self):
-        """Create progress bar for import operations."""
+        """Create progress bar for import/export operations."""
         frame = tk.Frame(self.root)
         frame.pack(padx=10, pady=5, fill="x")
         
@@ -451,8 +754,9 @@ class ImporterGUI:
         )
         self.progress_bar.pack(fill="x", pady=5)
         self.progress_bar["value"] = 0
+    
     def create_execute_button(self):
-        """Create execute buttons."""
+        """Create import and export buttons."""
         # Import button
         self.execute_btn = tk.Button(
             self.root,
@@ -466,17 +770,19 @@ class ImporterGUI:
         )
         self.execute_btn.pack(padx=10, pady=(10,5), fill="x")
 
-        # Export button (placeholder for future functionality)
+        # Export button
         self.export_btn = tk.Button(
             self.root,
             text="Export PostScript_AllianceMerge to JSON Files",
-            command=lambda: None,  # Placeholder - no functionality yet
-            bg="#2196F3",
+            command=self.execute_export,
+            bg="#4CAF50",
             fg="white",
             font=("Arial", 12, "bold"),
-            height=2
+            height=2,
+            state="disabled"  # Initially disabled
         )
         self.export_btn.pack(padx=10, pady=(0,10), fill="x")
+    
     def create_status_window(self):
         """Create status output window."""
         frame = tk.LabelFrame(self.root, text="Status", padx=10, pady=10)
@@ -484,23 +790,28 @@ class ImporterGUI:
         
         self.status_text = scrolledtext.ScrolledText(frame, height=12, state="disabled", wrap="word")
         self.status_text.pack(fill="both", expand=True)
+    
     def on_connection_field_changed(self, event=None):
         """Reset connection verification when connection fields change."""
         self.connection_verified = False
         self.conn_status_label.config(text="Connection not tested", fg="gray")
-        self.update_import_button_state()
-    def update_import_button_state(self):
+        self.update_button_states()
+    
+    def update_button_states(self):
         """
-        Enable/disable import button based on prerequisites.
+        Enable/disable import and export buttons based on prerequisites.
         
-        Import button is only enabled when:
+        Buttons are only enabled when:
         1. Connection has been tested successfully
         2. A directory has been selected
         """
         if self.connection_verified and self.directory_var.get().strip():
             self.execute_btn.config(state="normal")
+            self.export_btn.config(state="normal")
         else:
             self.execute_btn.config(state="disabled")
+            self.export_btn.config(state="disabled")
+    
     def test_connection(self):
         """
         Test database connection with provided credentials.
@@ -518,6 +829,7 @@ class ImporterGUI:
         # Run in thread to prevent UI blocking
         thread = threading.Thread(target=self.run_connection_test)
         thread.start()
+    
     def run_connection_test(self):
         """Execute the connection test."""
         try:
@@ -560,12 +872,14 @@ class ImporterGUI:
         finally:
             # Re-enable button
             self.test_conn_btn.config(state="normal")
-            self.update_import_button_state()
+            self.update_button_states()
+    
     def browse_directory(self):
         """Open directory browser dialog."""
-        directory = filedialog.askdirectory(title="Select JSON Files Directory")
+        directory = filedialog.askdirectory(title="Select Working Directory")
         if directory:
             self.directory_var.set(directory)
+    
     def log_status(self, message: str):
         """Add message to status window."""
         self.status_text.config(state="normal")
@@ -573,6 +887,7 @@ class ImporterGUI:
         self.status_text.see("end")
         self.status_text.config(state="disabled")
         self.root.update_idletasks()
+    
     def validate_connection_inputs(self):
         """Validate connection input fields."""
         if not self.host_entry.get().strip():
@@ -604,6 +919,7 @@ class ImporterGUI:
             return False
         
         return True
+    
     def validate_import_inputs(self):
         """Validate inputs before import execution."""
         if not self.connection_verified:
@@ -611,10 +927,23 @@ class ImporterGUI:
             return False
         
         if not self.directory_var.get().strip():
-            messagebox.showerror("Validation Error", "JSON files directory is required")
+            messagebox.showerror("Validation Error", "Working directory is required")
             return False
         
         return True
+    
+    def validate_export_inputs(self):
+        """Validate inputs before export execution."""
+        if not self.connection_verified:
+            messagebox.showerror("Validation Error", "Please test the database connection first")
+            return False
+        
+        if not self.directory_var.get().strip():
+            messagebox.showerror("Validation Error", "Working directory is required")
+            return False
+        
+        return True
+    
     def execute_import(self):
         """Execute the import process."""
         if not self.validate_import_inputs():
@@ -622,6 +951,7 @@ class ImporterGUI:
         
         # Disable buttons during import
         self.execute_btn.config(state="disabled")
+        self.export_btn.config(state="disabled")
         self.test_conn_btn.config(state="disabled")
         
         # Clear status window and reset progress bar
@@ -633,6 +963,44 @@ class ImporterGUI:
         # Run import in separate thread to prevent UI freezing
         thread = threading.Thread(target=self.run_import)
         thread.start()
+    
+    def execute_export(self):
+        """Execute the export process."""
+        if not self.validate_export_inputs():
+            return
+        
+        # Prompt user for project name
+        project_name = simpledialog.askstring(
+            "Project Name",
+            "Please enter your project name in State_County format\n(e.g., ILKane):",
+            parent=self.root
+        )
+        
+        if not project_name:
+            # User cancelled
+            return
+        
+        # Basic validation of project name
+        project_name = project_name.strip()
+        if not project_name:
+            messagebox.showerror("Validation Error", "Project name cannot be empty")
+            return
+        
+        # Disable buttons during export
+        self.execute_btn.config(state="disabled")
+        self.export_btn.config(state="disabled")
+        self.test_conn_btn.config(state="disabled")
+        
+        # Clear status window and reset progress bar
+        self.status_text.config(state="normal")
+        self.status_text.delete(1.0, "end")
+        self.status_text.config(state="disabled")
+        self.progress_bar["value"] = 0
+        
+        # Run export in separate thread to prevent UI freezing
+        thread = threading.Thread(target=self.run_export, args=(project_name,))
+        thread.start()
+    
     def run_import(self):
         """
         Run the import process with progress tracking.
@@ -719,7 +1087,92 @@ class ImporterGUI:
         finally:
             # Re-enable buttons
             self.execute_btn.config(state="normal")
-            self.test_conn_btn.config(state="normal")    
+            self.export_btn.config(state="normal")
+            self.test_conn_btn.config(state="normal")
+    
+    def run_export(self, project_name: str):
+        """
+        Run the export process with progress tracking.
+        
+        This method runs in a background thread, so we need to be careful
+        about updating the UI (must use update_idletasks).
+        
+        Args:
+            project_name: The project name prefix for output files
+        """
+        try:
+            self.log_status("Starting export process...\n")
+            self.log_status(f"Project name: {project_name}\n")
+        
+            # Create exporter instance with callback
+            exporter = MySQLToJSON(
+                host=self.host_entry.get().strip(),
+                user=self.user_entry.get().strip(),
+                password=self.password_entry.get().strip(),
+                database=self.database_entry.get().strip(),
+                port=int(self.port_entry.get().strip()),
+                status_callback=self.log_status
+            )
+        
+            # Get output directory
+            output_directory = self.directory_var.get().strip()
+        
+            # Get total entity count for progress tracking
+            total_entities = exporter.get_entity_count()
+            
+            if total_entities == 0:
+                self.log_status("No entities found in PostScript_AllianceMerge table")
+                exporter.close()
+                messagebox.showwarning("No Data", "No entities found to export")
+                return
+            
+            # Calculate number of files that will be created
+            batch_size = 2500
+            num_files = (total_entities + batch_size - 1) // batch_size
+            
+            # Export with progress updates
+            # We'll update progress as files are created
+            result = exporter.export_to_json_files(
+                output_directory=output_directory,
+                file_prefix=project_name,
+                batch_size=batch_size
+            )
+        
+            exporter.close()
+        
+            # Complete progress bar
+            self.progress_bar["value"] = 100
+        
+            if result['success']:
+                messagebox.showinfo(
+                    "Success", 
+                    f"Export completed successfully!\n\n"
+                    f"Files created: {result['files_created']}\n"
+                    f"Total entities: {result['total_entities']}\n\n"
+                    f"Check status window for details."
+                )
+            else:
+                messagebox.showerror(
+                    "Export Failed",
+                    f"Export failed: {result.get('error', 'Unknown error')}"
+                )
+        
+        except mysql.connector.Error as err:
+            error_msg = f"Database Error: {err}"
+            self.log_status(f"\nERROR: {error_msg}")
+            messagebox.showerror("Database Error", error_msg)
+        
+        except Exception as e:
+            error_msg = f"Error: {str(e)}"
+            self.log_status(f"\nERROR: {error_msg}")
+            messagebox.showerror("Error", error_msg)
+        
+        finally:
+            # Re-enable buttons
+            self.execute_btn.config(state="normal")
+            self.export_btn.config(state="normal")
+            self.test_conn_btn.config(state="normal")
+    
     def save_config(self):
         """Save host and port to configuration file."""
         try:
@@ -731,6 +1184,7 @@ class ImporterGUI:
                 json.dump(config, f)
         except Exception as e:
             print(f"Could not save configuration: {e}")
+    
     def load_config(self):
         """Load host and port from configuration file if it exists."""
         try:
