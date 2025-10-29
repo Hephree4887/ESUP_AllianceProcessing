@@ -645,7 +645,7 @@ class ImporterGUI:
         """Initialize the GUI components."""
         self.root = root
         self.root.title("JSON ↔ MySQL Converter")
-        self.root.geometry("650x700")
+        self.root.geometry("650x900")
         self.root.resizable(False, False)
         
         # Connection state tracking
@@ -775,7 +775,7 @@ class ImporterGUI:
             self.root,
             text="Export PostScript_AllianceMerge to JSON Files",
             command=self.execute_export,
-            bg="#FF9800",
+            bg="#4CAF50",
             fg="white",
             font=("Arial", 12, "bold"),
             height=2,
