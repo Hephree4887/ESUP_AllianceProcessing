@@ -49,6 +49,7 @@
     <Content Include="dist\importer_config.json" />
     <Content Include="dist\JSONtoMySQL.exe" />
     <Content Include="Documentation\Sample1.json" />
+    <Content Include="JSONtoMySQL.py_ORIG" />
     <Content Include="JSONtoMySQL.spec" />
     <Content Include="Documentation\MSSQLVersionOfExport.sql" />
     <Content Include="README.MD" />
