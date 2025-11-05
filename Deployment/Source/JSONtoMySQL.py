@@ -781,7 +781,12 @@ class TmpAllianceExporter:
             
             with open(filepath, 'w', newline='', encoding='utf-8-sig') as csvfile:
                 # utf-8-sig adds BOM for Excel compatibility
-                writer = csv.DictWriter(csvfile, fieldnames=self.COLUMNS)
+                writer = csv.DictWriter(
+                    csvfile,
+                    fieldnames=self.COLUMNS,
+                    quoting=csv.QUOTE_ALL,
+                    quotechar='"'
+                )
                 
                 # Write header row
                 writer.writeheader()
@@ -984,6 +989,14 @@ class ImporterGUI:
         self.root.title("JSON ↔ MySQL Converter")
         self.root.geometry("650x900")
         self.root.resizable(False, False)
+
+        # Shared color palette for the primary actions
+        self.button_palette = {
+            "test": ("#1E88E5", "#1565C0"),
+            "tmp_alliance": ("#FB8C00", "#EF6C00"),
+            "export": ("#5E35B1", "#4527A0"),
+            "import": ("#43A047", "#2E7D32")
+        }
         
         # Connection state tracking
         self.connection_verified = False
@@ -1041,19 +1054,18 @@ class ImporterGUI:
     def create_test_connection_button(self):
         """Create test connection button."""
         frame = tk.Frame(self.root)
-        frame.pack(padx=10, pady=5, fill="x")
-        
+        frame.pack(padx=10, pady=10, fill="x")
+        frame.columnconfigure(0, weight=1)
+
         self.test_conn_btn = tk.Button(
             frame,
             text="Test Connection",
             command=self.test_connection,
-            bg="#2196F3",
-            fg="white",
-            font=("Arial", 10, "bold"),
-            height=1
+            height=2
         )
-        self.test_conn_btn.pack(pady=5)
-        
+        self.test_conn_btn.grid(row=0, column=0, sticky="ew")
+        self._style_button(self.test_conn_btn, "test", font=("Arial", 11, "bold"))
+
         # Connection status label
         self.conn_status_label = tk.Label(
             frame,
@@ -1061,7 +1073,7 @@ class ImporterGUI:
             font=("Arial", 9),
             fg="gray"
         )
-        self.conn_status_label.pack(pady=2)
+        self.conn_status_label.grid(row=1, column=0, pady=(6, 0))
     def create_directory_frame(self):
         """Create directory selection - used for both import source and export destination."""
         frame = tk.LabelFrame(self.root, text="Working Directory", padx=10, pady=10)
@@ -1089,42 +1101,62 @@ class ImporterGUI:
         self.progress_bar["value"] = 0
     def create_execute_button(self):
         """Create import and export buttons."""
+        frame = tk.Frame(self.root)
+        frame.pack(padx=10, pady=10, fill="x")
+        frame.columnconfigure(0, weight=1)
+
         # Export tmp_Alliance button
         self.tmp_alliance_btn = tk.Button(
-            self.root,
+            frame,
             text="Scenario 1: Export tmp_Alliance to CSV and JSON",
             command=self.execute_tmp_alliance_export,
-            bg="#FF9800",  # Orange color to distinguish it
-            fg="white",
-            font=("Arial", 12, "bold"),
             height=2,
             state="disabled"
         )
-        self.tmp_alliance_btn.pack(padx=10, pady=(0,10), fill="x")
+        self.tmp_alliance_btn.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        self._style_button(self.tmp_alliance_btn, "tmp_alliance", font=("Arial", 12, "bold"))
+
         # Export button
         self.export_btn = tk.Button(
-            self.root,
+            frame,
             text="Scenario 2,3: Export Matched Entities to JSON Files",
             command=self.execute_export,
-            bg="#1500ff",
-            fg="white",
-            font=("Arial", 12, "bold"),
             height=2,
             state="disabled"  # Initially disabled
         )
-        self.export_btn.pack(padx=10, pady=(0,10), fill="x")
+        self.export_btn.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        self._style_button(self.export_btn, "export", font=("Arial", 12, "bold"))
+
         # Import button
         self.execute_btn = tk.Button(
-            self.root,
+            frame,
             text="Scenario 1,2,3,4: Import JSON Files from EJ",
             command=self.execute_import,
-            bg="#4CAF50",
-            fg="white",
-            font=("Arial", 12, "bold"),
             height=2,
             state="disabled"  # Initially disabled
         )
-        self.execute_btn.pack(padx=10, pady=(10,5), fill="x")
+        self.execute_btn.grid(row=2, column=0, sticky="ew")
+        self._style_button(self.execute_btn, "import", font=("Arial", 12, "bold"))
+
+    def _style_button(self, button: tk.Button, palette_key: str, font=None):
+        """Apply a consistent visual style to primary action buttons."""
+        bg_color, active_color = self.button_palette[palette_key]
+
+        config = {
+            "bg": bg_color,
+            "fg": "white",
+            "activebackground": active_color,
+            "activeforeground": "white",
+            "relief": "flat",
+            "bd": 0,
+            "highlightthickness": 0,
+            "cursor": "hand2"
+        }
+
+        if font is not None:
+            config["font"] = font
+
+        button.config(**config)
 
     def create_status_window(self):
         """Create status output window."""
