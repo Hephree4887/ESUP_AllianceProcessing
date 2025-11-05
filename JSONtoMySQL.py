@@ -5,7 +5,9 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk, simpledialog
 from pathlib import Path
 import threading
 from typing import Dict, List, Tuple, Any, Optional
+from datetime import datetime, date
 import os
+import csv  # For CSV export
 
 
 class JSONtoMySQL:
@@ -629,6 +631,351 @@ class MySQLToJSON:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager support - ensures connection is closed."""
         self.close()
+class TmpAllianceExporter:
+    """
+    Handles exporting the tmp_Alliance mapping table to both CSV and JSON formats.
+    
+    This class is specifically designed for the fixed-schema tmp_Alliance table which
+    contains entity mappings between legacy systems and the Alliance Community systems.
+    It generates two output files in a single operation to ensure data consistency.
+    """
+    
+    # Define the column structure once - we know this is fixed
+    COLUMNS = [
+        'SourceIDValue', 'TargetID', 'EntityType', 'ApplicationID', 'ClientID',
+        'TimeStampCreate', 'PushNumber', 'SourceDBName', 'SourceTableName',
+        'SourceColumnName', 'NameFirst', 'NameLast', 'NameMid', 'NameSuffix',
+        'BirthDate', 'ReferralNumber'
+    ]
+    
+    def __init__(self, host: str, user: str, password: str, database: str,
+                 port: int = 3306, status_callback=None):
+        """
+        Initialize database connection for tmp_Alliance export.
+        
+        Since we know the exact structure of tmp_Alliance, we can optimize
+        our queries and processing for this specific table layout.
+        """
+        self.status_callback = status_callback
+        self.database_name = database  # Store for validation queries
+        self.connection = mysql.connector.connect(
+            host=host,
+            user=user,
+            password=password,
+            database=database,
+            port=port,
+            connect_timeout=10,
+            autocommit=False
+        )
+        # Use dictionary cursor for cleaner field access
+        self.cursor = self.connection.cursor(dictionary=True)
+        self.log("Database connection established for tmp_Alliance export")
+    
+    def log(self, message: str):
+        """Send status messages to callback and console."""
+        if self.status_callback:
+            self.status_callback(message)
+        print(message)
+    
+    def validate_table_structure(self) -> Tuple[bool, str]:
+        """
+        Verify that tmp_Alliance exists and has the expected structure.
+        
+        This validation step ensures we're working with the correct table
+        schema before attempting to export data. It's a safety check that
+        prevents runtime errors if the table structure has been modified.
+        """
+        try:
+            # Check if table exists
+            self.cursor.execute("""
+                SELECT COUNT(*) as table_exists 
+                FROM information_schema.tables 
+                WHERE table_schema = %s 
+                AND table_name = 'tmp_Alliance'
+            """, (self.database_name,))
+            
+            result = self.cursor.fetchone()
+            if not result['table_exists']:
+                return False, "Table tmp_Alliance does not exist in the database"
+            
+            # Verify column structure
+            self.cursor.execute("""
+                SELECT COLUMN_NAME 
+                FROM information_schema.columns 
+                WHERE table_schema = %s 
+                AND table_name = 'tmp_Alliance'
+                ORDER BY ORDINAL_POSITION
+            """, (self.database_name,))
+            
+            actual_columns = [row['COLUMN_NAME'] for row in self.cursor.fetchall()]
+            
+            # Check if all expected columns are present
+            missing_columns = set(self.COLUMNS) - set(actual_columns)
+            if missing_columns:
+                return False, f"Missing expected columns: {', '.join(missing_columns)}"
+            
+            return True, "Table structure validated successfully"
+            
+        except Exception as e:
+            return False, f"Error validating table structure: {str(e)}"
+    
+    def get_record_count(self) -> int:
+        """Get total number of records in tmp_Alliance for progress tracking."""
+        self.cursor.execute("SELECT COUNT(*) as count FROM tmp_Alliance")
+        result = self.cursor.fetchone()
+        return result['count'] if result else 0
+    
+    def fetch_data_in_batches(self, batch_size: int = 10000) -> List[Dict]:
+        """
+        Fetch all data from tmp_Alliance in memory-efficient batches.
+        
+        For large tables, this approach prevents memory overflow by processing
+        data in chunks. The batch size of 10000 is a good balance between
+        memory usage and query efficiency.
+        """
+        all_data = []
+        offset = 0
+        
+        # Build the SELECT query with proper column ordering
+        column_list = ', '.join([f'`{col}`' for col in self.COLUMNS])
+        query = f"""
+            SELECT {column_list}
+            FROM tmp_Alliance
+            ORDER BY PushNumber, EntityType, SourceIDValue
+            LIMIT %s OFFSET %s
+        """
+        
+        while True:
+            self.cursor.execute(query, (batch_size, offset))
+            batch = self.cursor.fetchall()
+            
+            if not batch:
+                break
+            
+            all_data.extend(batch)
+            offset += batch_size
+            
+            self.log(f"Fetched {len(all_data)} records so far...")
+        
+        return all_data
+    
+    def _format_datetime_for_export(self, dt_value) -> str:
+        """
+        Format datetime values consistently for export.
+        
+        MySQL datetime objects need to be converted to strings for JSON
+        and CSV export. We use ISO format for consistency and compatibility.
+        """
+        if dt_value is None:
+            return ""
+        elif isinstance(dt_value, datetime):
+            return dt_value.strftime('%Y-%m-%d %H:%M:%S')
+        elif isinstance(dt_value, date):
+            return dt_value.strftime('%Y-%m-%d')
+        else:
+            return str(dt_value)
+    
+    def _export_to_csv(self, data: List[Dict], filepath: str) -> bool:
+        """
+        Export data to CSV format with proper encoding and formatting.
+        
+        This method handles special characters, NULL values, and ensures
+        compatibility with Excel and other spreadsheet applications.
+        """
+        try:
+            import csv
+            
+            with open(filepath, 'w', newline='', encoding='utf-8-sig') as csvfile:
+                # utf-8-sig adds BOM for Excel compatibility
+                writer = csv.DictWriter(csvfile, fieldnames=self.COLUMNS)
+                
+                # Write header row
+                writer.writeheader()
+                
+                # Process each row
+                for row in data:
+                    # Format datetime fields
+                    formatted_row = {}
+                    for key, value in row.items():
+                        if key in ['TimeStampCreate', 'BirthDate']:
+                            formatted_row[key] = self._format_datetime_for_export(value)
+                        elif value is None:
+                            formatted_row[key] = ''  # Empty string for NULL values
+                        else:
+                            formatted_row[key] = value
+                    
+                    writer.writerow(formatted_row)
+            
+            self.log(f"Successfully exported {len(data)} records to CSV: {filepath}")
+            return True
+            
+        except Exception as e:
+            self.log(f"Error exporting to CSV: {str(e)}")
+            return False
+    
+    def _export_to_json(self, data: List[Dict], filepath: str) -> bool:
+        """
+        Export data to JSON format with proper type handling.
+        
+        The JSON output is formatted as an array of objects, making it easy
+        to import into other systems or process with standard JSON tools.
+        """
+        try:
+            # Prepare data for JSON serialization
+            json_data = []
+            
+            for row in data:
+                json_row = {}
+                for key, value in row.items():
+                    if key in ['TimeStampCreate', 'BirthDate']:
+                        # Convert datetime/date objects to strings
+                        json_row[key] = self._format_datetime_for_export(value)
+                    elif value is None:
+                        json_row[key] = None  # Preserve NULL as null in JSON
+                    else:
+                        json_row[key] = value
+                
+                json_data.append(json_row)
+            
+            # Write to file with pretty formatting
+            with open(filepath, 'w', encoding='utf-8') as jsonfile:
+                json.dump(json_data, jsonfile, indent=2, ensure_ascii=False)
+            
+            self.log(f"Successfully exported {len(data)} records to JSON: {filepath}")
+            return True
+            
+        except Exception as e:
+            self.log(f"Error exporting to JSON: {str(e)}")
+            return False
+    
+    def export_to_files(self, output_directory: str, project_name: str) -> Dict[str, Any]:
+        """
+        Main export method that creates both CSV and JSON files.
+        
+        This method orchestrates the entire export process:
+        1. Validates the table structure
+        2. Fetches all data from tmp_Alliance
+        3. Exports to both CSV and JSON formats
+        4. Provides detailed success/failure reporting
+        
+        The atomic nature ensures both files are created successfully
+        or neither is created, maintaining consistency.
+        """
+        try:
+            # Ensure output directory exists
+            os.makedirs(output_directory, exist_ok=True)
+            
+            # Validate table structure first
+            valid, message = self.validate_table_structure()
+            if not valid:
+                self.log(f"Validation failed: {message}")
+                return {
+                    'success': False,
+                    'error': message,
+                    'total_records': 0
+                }
+            
+            # Get record count for progress tracking
+            total_records = self.get_record_count()
+            
+            if total_records == 0:
+                self.log("No records found in tmp_Alliance table")
+                return {
+                    'success': False,
+                    'error': 'No data to export',
+                    'total_records': 0
+                }
+            
+            self.log(f"Found {total_records} records to export")
+            
+            # Fetch all data
+            self.log("Fetching data from tmp_Alliance...")
+            data = self.fetch_data_in_batches()
+            
+            # Generate file paths
+            csv_filename = f"{project_name}_Alliance.csv"
+            json_filename = f"{project_name}_Alliance.json"
+            csv_filepath = os.path.join(output_directory, csv_filename)
+            json_filepath = os.path.join(output_directory, json_filename)
+            
+            # Use temporary files for atomic operation
+            temp_csv = csv_filepath + '.tmp'
+            temp_json = json_filepath + '.tmp'
+            
+            # Export to temporary files
+            self.log("Creating CSV file...")
+            csv_success = self._export_to_csv(data, temp_csv)
+            
+            if not csv_success:
+                # Clean up temporary file if it exists
+                if os.path.exists(temp_csv):
+                    os.remove(temp_csv)
+                return {
+                    'success': False,
+                    'error': 'Failed to create CSV file',
+                    'total_records': total_records
+                }
+            
+            self.log("Creating JSON file...")
+            json_success = self._export_to_json(data, temp_json)
+            
+            if not json_success:
+                # Clean up temporary files
+                if os.path.exists(temp_csv):
+                    os.remove(temp_csv)
+                if os.path.exists(temp_json):
+                    os.remove(temp_json)
+                return {
+                    'success': False,
+                    'error': 'Failed to create JSON file',
+                    'total_records': total_records
+                }
+            
+            # Both exports successful - rename temp files to final names
+            os.rename(temp_csv, csv_filepath)
+            os.rename(temp_json, json_filepath)
+            
+            # Log summary
+            self.log("\n" + "="*60)
+            self.log("EXPORT SUMMARY")
+            self.log("="*60)
+            self.log(f"Total records exported: {total_records}")
+            self.log(f"Files created:")
+            self.log(f"  - CSV: {csv_filename}")
+            self.log(f"  - JSON: {json_filename}")
+            self.log(f"Output directory: {output_directory}")
+            self.log("="*60)
+            
+            return {
+                'success': True,
+                'total_records': total_records,
+                'files_created': [csv_filename, json_filename],
+                'csv_file': csv_filepath,
+                'json_file': json_filepath
+            }
+            
+        except Exception as e:
+            error_msg = f"Unexpected error during export: {str(e)}"
+            self.log(error_msg)
+            return {
+                'success': False,
+                'error': error_msg,
+                'total_records': 0
+            }
+    
+    def close(self):
+        """Close database connection and clean up resources."""
+        self.cursor.close()
+        self.connection.close()
+        self.log("Database connection closed")
+    
+    def __enter__(self):
+        """Context manager support."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager cleanup."""
+        self.close()
 class ImporterGUI:
     """
     Graphical user interface for the JSON to MySQL importer and MySQL to JSON exporter.
@@ -702,7 +1049,6 @@ class ImporterGUI:
         self.database_entry = tk.Entry(frame, width=40)
         self.database_entry.grid(row=4, column=1, pady=5)
         self.database_entry.bind('<KeyRelease>', self.on_connection_field_changed)
-    
     def create_test_connection_button(self):
         """Create test connection button."""
         frame = tk.Frame(self.root)
@@ -727,7 +1073,6 @@ class ImporterGUI:
             fg="gray"
         )
         self.conn_status_label.pack(pady=2)
-    
     def create_directory_frame(self):
         """Create directory selection - used for both import source and export destination."""
         frame = tk.LabelFrame(self.root, text="Working Directory", padx=10, pady=10)
@@ -738,7 +1083,6 @@ class ImporterGUI:
         
         tk.Entry(frame, textvariable=self.directory_var, width=50, state="readonly").pack(side="left", padx=5)
         tk.Button(frame, text="Browse...", command=self.browse_directory, width=10).pack(side="left")
-    
     def create_progress_bar(self):
         """Create progress bar for import/export operations."""
         frame = tk.Frame(self.root)
@@ -754,13 +1098,12 @@ class ImporterGUI:
         )
         self.progress_bar.pack(fill="x", pady=5)
         self.progress_bar["value"] = 0
-    
     def create_execute_button(self):
         """Create import and export buttons."""
         # Import button
         self.execute_btn = tk.Button(
             self.root,
-            text="Import JSON Exception Files from EJ",
+            text="Scenario 1,2,3,4: Import JSON Files from EJ",
             command=self.execute_import,
             bg="#4CAF50",
             fg="white",
@@ -768,12 +1111,10 @@ class ImporterGUI:
             height=2,
             state="disabled"  # Initially disabled
         )
-        self.execute_btn.pack(padx=10, pady=(10,5), fill="x")
-
         # Export button
         self.export_btn = tk.Button(
             self.root,
-            text="Export PostScript_AllianceMerge to JSON Files",
+            text="Scenario 2,3: Export Matched Entities to JSON Files",
             command=self.execute_export,
             bg="#4CAF50",
             fg="white",
@@ -781,8 +1122,20 @@ class ImporterGUI:
             height=2,
             state="disabled"  # Initially disabled
         )
+        # New button for tmp_Alliance export
+        self.tmp_alliance_btn = tk.Button(
+            self.root,
+            text="Scenario 1: Export tmp_Alliance to CSV and JSON",
+            command=self.execute_tmp_alliance_export,
+            bg="#FF9800",  # Orange color to distinguish it
+            fg="white",
+            font=("Arial", 12, "bold"),
+            height=2,
+            state="disabled"
+        )
+        self.execute_btn.pack(padx=10, pady=(10,5), fill="x")
+        self.tmp_alliance_btn.pack(padx=10, pady=(0,10), fill="x")
         self.export_btn.pack(padx=10, pady=(0,10), fill="x")
-    
     def create_status_window(self):
         """Create status output window."""
         frame = tk.LabelFrame(self.root, text="Status", padx=10, pady=10)
@@ -790,46 +1143,37 @@ class ImporterGUI:
         
         self.status_text = scrolledtext.ScrolledText(frame, height=12, state="disabled", wrap="word")
         self.status_text.pack(fill="both", expand=True)
-    
     def on_connection_field_changed(self, event=None):
         """Reset connection verification when connection fields change."""
         self.connection_verified = False
         self.conn_status_label.config(text="Connection not tested", fg="gray")
         self.update_button_states()
-    
     def update_button_states(self):
-        """
-        Enable/disable import and export buttons based on prerequisites.
-        
-        Buttons are only enabled when:
-        1. Connection has been tested successfully
-        2. A directory has been selected
-        """
+        """Enable/disable all operation buttons based on prerequisites."""
         if self.connection_verified and self.directory_var.get().strip():
             self.execute_btn.config(state="normal")
             self.export_btn.config(state="normal")
+            self.tmp_alliance_btn.config(state="normal")  # Add this line
         else:
             self.execute_btn.config(state="disabled")
             self.export_btn.config(state="disabled")
-    
-    def test_connection(self):
-        """
-        Test database connection with provided credentials.
+            self.tmp_alliance_btn.config(state="disabled")  # Add this line    def test_connection(self):
+            """
+            Test database connection with provided credentials.
         
-        This runs in a separate thread to prevent UI freezing during
-        the connection attempt.
-        """
-        if not self.validate_connection_inputs():
-            return
+            This runs in a separate thread to prevent UI freezing during
+            the connection attempt.
+            """
+            if not self.validate_connection_inputs():
+                return
         
-        # Disable button during test
-        self.test_conn_btn.config(state="disabled")
-        self.conn_status_label.config(text="Testing connection...", fg="orange")
+            # Disable button during test
+            self.test_conn_btn.config(state="disabled")
+            self.conn_status_label.config(text="Testing connection...", fg="orange")
         
-        # Run in thread to prevent UI blocking
-        thread = threading.Thread(target=self.run_connection_test)
-        thread.start()
-    
+            # Run in thread to prevent UI blocking
+            thread = threading.Thread(target=self.run_connection_test)
+            thread.start()
     def run_connection_test(self):
         """Execute the connection test."""
         try:
@@ -873,13 +1217,11 @@ class ImporterGUI:
             # Re-enable button
             self.test_conn_btn.config(state="normal")
             self.update_button_states()
-    
     def browse_directory(self):
         """Open directory browser dialog."""
         directory = filedialog.askdirectory(title="Select Working Directory")
         if directory:
             self.directory_var.set(directory)
-    
     def log_status(self, message: str):
         """Add message to status window."""
         self.status_text.config(state="normal")
@@ -887,7 +1229,6 @@ class ImporterGUI:
         self.status_text.see("end")
         self.status_text.config(state="disabled")
         self.root.update_idletasks()
-    
     def validate_connection_inputs(self):
         """Validate connection input fields."""
         if not self.host_entry.get().strip():
@@ -919,7 +1260,6 @@ class ImporterGUI:
             return False
         
         return True
-    
     def validate_import_inputs(self):
         """Validate inputs before import execution."""
         if not self.connection_verified:
@@ -931,7 +1271,6 @@ class ImporterGUI:
             return False
         
         return True
-    
     def validate_export_inputs(self):
         """Validate inputs before export execution."""
         if not self.connection_verified:
@@ -943,7 +1282,6 @@ class ImporterGUI:
             return False
         
         return True
-    
     def execute_import(self):
         """Execute the import process."""
         if not self.validate_import_inputs():
@@ -963,7 +1301,6 @@ class ImporterGUI:
         # Run import in separate thread to prevent UI freezing
         thread = threading.Thread(target=self.run_import)
         thread.start()
-    
     def execute_export(self):
         """Execute the export process."""
         if not self.validate_export_inputs():
@@ -1000,7 +1337,6 @@ class ImporterGUI:
         # Run export in separate thread to prevent UI freezing
         thread = threading.Thread(target=self.run_export, args=(project_name,))
         thread.start()
-    
     def run_import(self):
         """
         Run the import process with progress tracking.
@@ -1089,7 +1425,6 @@ class ImporterGUI:
             self.execute_btn.config(state="normal")
             self.export_btn.config(state="normal")
             self.test_conn_btn.config(state="normal")
-    
     def run_export(self, project_name: str):
         """
         Run the export process with progress tracking.
@@ -1172,7 +1507,6 @@ class ImporterGUI:
             self.execute_btn.config(state="normal")
             self.export_btn.config(state="normal")
             self.test_conn_btn.config(state="normal")
-    
     def save_config(self):
         """Save host and port to configuration file."""
         try:
@@ -1184,7 +1518,6 @@ class ImporterGUI:
                 json.dump(config, f)
         except Exception as e:
             print(f"Could not save configuration: {e}")
-    
     def load_config(self):
         """Load host and port from configuration file if it exists."""
         try:
@@ -1202,7 +1535,111 @@ class ImporterGUI:
                     self.port_entry.insert(0, config['port'])
         except Exception as e:
             print(f"Could not load configuration: {e}")
-
+    def execute_tmp_alliance_export(self):
+        """Execute the tmp_Alliance export process."""
+        if not self.validate_export_inputs():  # Reuse existing validation
+            return
+    
+        # Prompt for project name
+        project_name = simpledialog.askstring(
+            "Project Name",
+            "Enter project name for tmp_Alliance export files\n(e.g., ILKane):",
+            parent=self.root
+        )
+    
+        if not project_name:
+            return
+    
+        project_name = project_name.strip()
+        if not project_name:
+            messagebox.showerror("Validation Error", "Project name cannot be empty")
+            return
+    
+        # Disable buttons during export
+        self.execute_btn.config(state="disabled")
+        self.export_btn.config(state="disabled")
+        self.tmp_alliance_btn.config(state="disabled")
+        self.test_conn_btn.config(state="disabled")
+    
+        # Clear status and reset progress
+        self.status_text.config(state="normal")
+        self.status_text.delete(1.0, "end")
+        self.status_text.config(state="disabled")
+        self.progress_bar["value"] = 0
+    
+        # Run in separate thread
+        thread = threading.Thread(
+            target=self.run_tmp_alliance_export,
+            args=(project_name,)
+        )
+        thread.start()
+    def run_tmp_alliance_export(self, project_name: str):
+        """Run the tmp_Alliance export in a background thread."""
+        try:
+            self.log_status("Starting tmp_Alliance export process...\n")
+            self.log_status(f"Project name: {project_name}\n")
+        
+            # Create exporter with the necessary import
+            from datetime import datetime, date  # Add at top of method
+            import os  # Add at top of method
+        
+            exporter = TmpAllianceExporter(
+                host=self.host_entry.get().strip(),
+                user=self.user_entry.get().strip(),
+                password=self.password_entry.get().strip(),
+                database=self.database_entry.get().strip(),
+                port=int(self.port_entry.get().strip()),
+                status_callback=self.log_status
+            )
+        
+            # Get output directory
+            output_directory = self.directory_var.get().strip()
+        
+            # Update progress: Starting
+            self.progress_bar["value"] = 10
+            self.root.update_idletasks()
+        
+            # Execute export
+            result = exporter.export_to_files(output_directory, project_name)
+        
+            # Update progress: Complete
+            self.progress_bar["value"] = 100
+            self.root.update_idletasks()
+        
+            exporter.close()
+        
+            if result['success']:
+                messagebox.showinfo(
+                    "Success",
+                    f"Export completed successfully!\n\n"
+                    f"Records exported: {result['total_records']}\n"
+                    f"Files created:\n"
+                    f"  • {result['files_created'][0]}\n"
+                    f"  • {result['files_created'][1]}\n\n"
+                    f"Check status window for details."
+                )
+            else:
+                messagebox.showerror(
+                    "Export Failed",
+                    f"Export failed: {result.get('error', 'Unknown error')}"
+                )
+    
+        except mysql.connector.Error as err:
+            error_msg = f"Database Error: {err}"
+            self.log_status(f"\nERROR: {error_msg}")
+            messagebox.showerror("Database Error", error_msg)
+    
+        except Exception as e:
+            error_msg = f"Error: {str(e)}"
+            self.log_status(f"\nERROR: {error_msg}")
+            messagebox.showerror("Error", error_msg)
+    
+        finally:
+            # Re-enable buttons
+            self.execute_btn.config(state="normal")
+            self.export_btn.config(state="normal")
+            self.tmp_alliance_btn.config(state="normal")
+            self.test_conn_btn.config(state="normal")
 
 if __name__ == "__main__":
     root = tk.Tk()
