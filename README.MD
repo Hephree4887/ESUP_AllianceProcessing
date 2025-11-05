@@ -66,6 +66,14 @@
 
 Or simply double-click `run.bat` in the project folder.
 
+### Running Tests
+
+To execute the automated test suite (including the `JSONtoMySQL` column type inference tests), run:
+
+```bash
+pytest
+```
+
 ## Detailed Usage Guide
 
 ### Connection Setup
