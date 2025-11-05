@@ -57,7 +57,6 @@
     <Content Include="dist\JSONtoMySQL.exe" />
     <Content Include="JSONtoMySQL.spec" />
     <Content Include="Documentation\MSSQLVersionOfExport.sql" />
-    <Content Include="README.MD" />
     <Content Include="requirements.txt" />
     <Content Include="run.bat" />
   </ItemGroup>
