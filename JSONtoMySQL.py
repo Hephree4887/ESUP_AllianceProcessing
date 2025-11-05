@@ -1116,7 +1116,7 @@ class ImporterGUI:
             self.root,
             text="Scenario 2,3: Export Matched Entities to JSON Files",
             command=self.execute_export,
-            bg="#4CAF50",
+            bg="#7b00ff",
             fg="white",
             font=("Arial", 12, "bold"),
             height=2,
