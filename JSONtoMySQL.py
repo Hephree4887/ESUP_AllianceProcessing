@@ -341,9 +341,9 @@ class JSONtoMySQL:
         self.close()
 class MySQLToJSON:
     """
-    Handles the business logic for exporting MySQL PostScript_AllianceMerge table to JSON files.
-    
-    This class reads from the PostScript_AllianceMerge table, groups records by EntityID,
+    Handles the business logic for exporting MySQL PostScript_AllianceMerge_NEW table to JSON files.
+
+    This class reads from the PostScript_AllianceMerge_NEW table, groups records by EntityID,
     and exports them in batches of 2500 entity groups per JSON file. The output format
     matches the Alliance Community Bridge (ACB) JSON structure with nested entities.
     """
@@ -357,7 +357,7 @@ class MySQLToJSON:
             host: MySQL server hostname
             user: MySQL username
             password: MySQL password
-            database: Database name containing PostScript_AllianceMerge table
+            database: Database name containing PostScript_AllianceMerge_NEW table
             port: MySQL port (default 3306)
             status_callback: Optional callback function for status messages
         """
@@ -384,7 +384,7 @@ class MySQLToJSON:
     
     def get_entity_count(self) -> int:
         """
-        Get the count of distinct EntityIDs in the PostScript_AllianceMerge table.
+        Get the count of distinct EntityIDs in the PostScript_AllianceMerge_NEW table.
         
         Returns:
             Integer count of unique entities
@@ -514,10 +514,10 @@ class MySQLToJSON:
             "Entities": entities_array
         }
     
-    def export_to_json_files(self, output_directory: str, file_prefix: str, 
+    def export_to_json_files(self, output_directory: str, file_prefix: str,
                             batch_size: int = 2500) -> Dict[str, Any]:
         """
-        Export PostScript_AllianceMerge table to batched JSON files.
+        Export PostScript_AllianceMerge_NEW table to batched JSON files.
         
         This is the main export method that orchestrates the entire process:
         1. Count total entities
@@ -544,7 +544,7 @@ class MySQLToJSON:
             total_entities = self.get_entity_count()
             
             if total_entities == 0:
-                self.log("No entities found in PostScript_AllianceMerge table")
+                self.log("No entities found in PostScript_AllianceMerge_NEW table")
                 return {
                     'total_entities': 0,
                     'files_created': 0,
@@ -1450,7 +1450,7 @@ class ImporterGUI:
             total_entities = exporter.get_entity_count()
             
             if total_entities == 0:
-                self.log_status("No entities found in PostScript_AllianceMerge table")
+                self.log_status("No entities found in PostScript_AllianceMerge_NEW table")
                 exporter.close()
                 messagebox.showwarning("No Data", "No entities found to export")
                 return

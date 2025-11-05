@@ -440,7 +440,7 @@ Export operations are read-only and do not modify the database. They use a singl
 
 ### "No entities found" (Export)
 
-**Symptoms:** Export completes but reports "No entities found in PostScript_AllianceMerge table"
+**Symptoms:** Export completes but reports "No entities found in PostScript_AllianceMerge_NEW table"
 
 **Solutions:**
 - Verify the table name is exactly `PostScript_AllianceMerge_NEW`
