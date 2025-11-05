@@ -5,8 +5,9 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk, simpledialog
 from pathlib import Path
 import threading
 from typing import Dict, List, Tuple, Any, Optional
+from datetime import datetime, date
 import os
-
+import csv  
 
 class JSONtoMySQL:
     """
@@ -637,7 +638,6 @@ class ImporterGUI:
     to the JSONtoMySQL and MySQLToJSON classes. It follows the Model-View pattern where
     those classes are the Models and this class is the View.
     """
-    
     # Configuration file for saving connection settings
     CONFIG_FILE = "importer_config.json"
     
@@ -664,7 +664,6 @@ class ImporterGUI:
         
         # Initial state - disable import and export buttons
         self.update_button_states()
-    
     def create_connection_frame(self):
         """Create database connection input fields."""
         frame = tk.LabelFrame(self.root, text="Database Connection", padx=10, pady=10)
@@ -702,7 +701,6 @@ class ImporterGUI:
         self.database_entry = tk.Entry(frame, width=40)
         self.database_entry.grid(row=4, column=1, pady=5)
         self.database_entry.bind('<KeyRelease>', self.on_connection_field_changed)
-    
     def create_test_connection_button(self):
         """Create test connection button."""
         frame = tk.Frame(self.root)
@@ -727,7 +725,6 @@ class ImporterGUI:
             fg="gray"
         )
         self.conn_status_label.pack(pady=2)
-    
     def create_directory_frame(self):
         """Create directory selection - used for both import source and export destination."""
         frame = tk.LabelFrame(self.root, text="Working Directory", padx=10, pady=10)
@@ -738,7 +735,6 @@ class ImporterGUI:
         
         tk.Entry(frame, textvariable=self.directory_var, width=50, state="readonly").pack(side="left", padx=5)
         tk.Button(frame, text="Browse...", command=self.browse_directory, width=10).pack(side="left")
-    
     def create_progress_bar(self):
         """Create progress bar for import/export operations."""
         frame = tk.Frame(self.root)
@@ -754,13 +750,36 @@ class ImporterGUI:
         )
         self.progress_bar.pack(fill="x", pady=5)
         self.progress_bar["value"] = 0
-    
     def create_execute_button(self):
         """Create import and export buttons."""
+        # Export tmp_Alliance button
+        self.tmp_alliance_btn = tk.Button(
+            self.root,
+            text="Scenario 1: Export tmp_Alliance to CSV or JSON",
+            command=self.execute_tmp_alliance_export,
+            bg="#FF9800",  # Orange color to distinguish it
+            fg="white",
+            font=("Arial", 12, "bold"),
+            height=2,
+            state="disabled"
+        )
+        self.tmp_alliance_btn.pack(padx=10, pady=(0,10), fill="x")
+        # Export button
+        self.export_btn = tk.Button(
+            self.root,
+            text="Scenario 2,3: Export Matched Entities to JSON Files",
+            command=self.execute_export,
+            bg="#1500ff",
+            fg="white",
+            font=("Arial", 12, "bold"),
+            height=2,
+            state="disabled"  # Initially disabled
+        )
+        self.export_btn.pack(padx=10, pady=(0,10), fill="x")
         # Import button
         self.execute_btn = tk.Button(
             self.root,
-            text="Import JSON Exception Files from EJ",
+            text="Scenario 1,2,3,4: Import JSON Files from EJ",
             command=self.execute_import,
             bg="#4CAF50",
             fg="white",
@@ -770,19 +789,6 @@ class ImporterGUI:
         )
         self.execute_btn.pack(padx=10, pady=(10,5), fill="x")
 
-        # Export button
-        self.export_btn = tk.Button(
-            self.root,
-            text="Export PostScript_AllianceMerge to JSON Files",
-            command=self.execute_export,
-            bg="#4CAF50",
-            fg="white",
-            font=("Arial", 12, "bold"),
-            height=2,
-            state="disabled"  # Initially disabled
-        )
-        self.export_btn.pack(padx=10, pady=(0,10), fill="x")
-    
     def create_status_window(self):
         """Create status output window."""
         frame = tk.LabelFrame(self.root, text="Status", padx=10, pady=10)
@@ -790,28 +796,21 @@ class ImporterGUI:
         
         self.status_text = scrolledtext.ScrolledText(frame, height=12, state="disabled", wrap="word")
         self.status_text.pack(fill="both", expand=True)
-    
     def on_connection_field_changed(self, event=None):
         """Reset connection verification when connection fields change."""
         self.connection_verified = False
         self.conn_status_label.config(text="Connection not tested", fg="gray")
         self.update_button_states()
-    
     def update_button_states(self):
-        """
-        Enable/disable import and export buttons based on prerequisites.
-        
-        Buttons are only enabled when:
-        1. Connection has been tested successfully
-        2. A directory has been selected
-        """
+        """Enable/disable all operation buttons based on prerequisites."""
         if self.connection_verified and self.directory_var.get().strip():
             self.execute_btn.config(state="normal")
             self.export_btn.config(state="normal")
+            self.tmp_alliance_btn.config(state="normal")  # Add this line
         else:
             self.execute_btn.config(state="disabled")
             self.export_btn.config(state="disabled")
-    
+            self.tmp_alliance_btn.config(state="disabled")  # Add this line    
     def test_connection(self):
         """
         Test database connection with provided credentials.
@@ -829,7 +828,6 @@ class ImporterGUI:
         # Run in thread to prevent UI blocking
         thread = threading.Thread(target=self.run_connection_test)
         thread.start()
-    
     def run_connection_test(self):
         """Execute the connection test."""
         try:
@@ -873,13 +871,11 @@ class ImporterGUI:
             # Re-enable button
             self.test_conn_btn.config(state="normal")
             self.update_button_states()
-    
     def browse_directory(self):
         """Open directory browser dialog."""
         directory = filedialog.askdirectory(title="Select Working Directory")
         if directory:
             self.directory_var.set(directory)
-    
     def log_status(self, message: str):
         """Add message to status window."""
         self.status_text.config(state="normal")
@@ -887,7 +883,6 @@ class ImporterGUI:
         self.status_text.see("end")
         self.status_text.config(state="disabled")
         self.root.update_idletasks()
-    
     def validate_connection_inputs(self):
         """Validate connection input fields."""
         if not self.host_entry.get().strip():
@@ -919,7 +914,6 @@ class ImporterGUI:
             return False
         
         return True
-    
     def validate_import_inputs(self):
         """Validate inputs before import execution."""
         if not self.connection_verified:
@@ -931,7 +925,6 @@ class ImporterGUI:
             return False
         
         return True
-    
     def validate_export_inputs(self):
         """Validate inputs before export execution."""
         if not self.connection_verified:
@@ -943,7 +936,6 @@ class ImporterGUI:
             return False
         
         return True
-    
     def execute_import(self):
         """Execute the import process."""
         if not self.validate_import_inputs():
@@ -963,7 +955,6 @@ class ImporterGUI:
         # Run import in separate thread to prevent UI freezing
         thread = threading.Thread(target=self.run_import)
         thread.start()
-    
     def execute_export(self):
         """Execute the export process."""
         if not self.validate_export_inputs():
@@ -1000,7 +991,6 @@ class ImporterGUI:
         # Run export in separate thread to prevent UI freezing
         thread = threading.Thread(target=self.run_export, args=(project_name,))
         thread.start()
-    
     def run_import(self):
         """
         Run the import process with progress tracking.
@@ -1089,7 +1079,6 @@ class ImporterGUI:
             self.execute_btn.config(state="normal")
             self.export_btn.config(state="normal")
             self.test_conn_btn.config(state="normal")
-    
     def run_export(self, project_name: str):
         """
         Run the export process with progress tracking.
@@ -1172,7 +1161,111 @@ class ImporterGUI:
             self.execute_btn.config(state="normal")
             self.export_btn.config(state="normal")
             self.test_conn_btn.config(state="normal")
+    def execute_tmp_alliance_export(self):
+        """Execute the tmp_Alliance export process."""
+        if not self.validate_export_inputs():  # Reuse existing validation
+            return
     
+        # Prompt for project name
+        project_name = simpledialog.askstring(
+            "Project Name",
+            "Enter project name for tmp_Alliance export files\n(e.g., ILKane):",
+            parent=self.root
+        )
+    
+        if not project_name:
+            return
+    
+        project_name = project_name.strip()
+        if not project_name:
+            messagebox.showerror("Validation Error", "Project name cannot be empty")
+            return
+    
+        # Disable buttons during export
+        self.execute_btn.config(state="disabled")
+        self.export_btn.config(state="disabled")
+        self.tmp_alliance_btn.config(state="disabled")
+        self.test_conn_btn.config(state="disabled")
+    
+        # Clear status and reset progress
+        self.status_text.config(state="normal")
+        self.status_text.delete(1.0, "end")
+        self.status_text.config(state="disabled")
+        self.progress_bar["value"] = 0
+    
+        # Run in separate thread
+        thread = threading.Thread(
+            target=self.run_tmp_alliance_export,
+            args=(project_name,)
+        )
+        thread.start()
+    def run_tmp_alliance_export(self, project_name: str):
+        """Run the tmp_Alliance export in a background thread."""
+        try:
+            self.log_status("Starting tmp_Alliance export process...\n")
+            self.log_status(f"Project name: {project_name}\n")
+        
+            # Create exporter with the necessary import
+            from datetime import datetime, date  # Add at top of method
+            import os  # Add at top of method
+        
+            exporter = TmpAllianceExporter(
+                host=self.host_entry.get().strip(),
+                user=self.user_entry.get().strip(),
+                password=self.password_entry.get().strip(),
+                database=self.database_entry.get().strip(),
+                port=int(self.port_entry.get().strip()),
+                status_callback=self.log_status
+            )
+        
+            # Get output directory
+            output_directory = self.directory_var.get().strip()
+        
+            # Update progress: Starting
+            self.progress_bar["value"] = 10
+            self.root.update_idletasks()
+        
+            # Execute export
+            result = exporter.export_to_files(output_directory, project_name)
+        
+            # Update progress: Complete
+            self.progress_bar["value"] = 100
+            self.root.update_idletasks()
+        
+            exporter.close()
+        
+            if result['success']:
+                messagebox.showinfo(
+                    "Success",
+                    f"Export completed successfully!\n\n"
+                    f"Records exported: {result['total_records']}\n"
+                    f"Files created:\n"
+                    f"  • {result['files_created'][0]}\n"
+                    f"  • {result['files_created'][1]}\n\n"
+                    f"Check status window for details."
+                )
+            else:
+                messagebox.showerror(
+                    "Export Failed",
+                    f"Export failed: {result.get('error', 'Unknown error')}"
+                )
+    
+        except mysql.connector.Error as err:
+            error_msg = f"Database Error: {err}"
+            self.log_status(f"\nERROR: {error_msg}")
+            messagebox.showerror("Database Error", error_msg)
+    
+        except Exception as e:
+            error_msg = f"Error: {str(e)}"
+            self.log_status(f"\nERROR: {error_msg}")
+            messagebox.showerror("Error", error_msg)
+    
+        finally:
+            # Re-enable buttons
+            self.execute_btn.config(state="normal")
+            self.export_btn.config(state="normal")
+            self.tmp_alliance_btn.config(state="normal")
+            self.test_conn_btn.config(state="normal")
     def save_config(self):
         """Save host and port to configuration file."""
         try:
@@ -1184,7 +1277,6 @@ class ImporterGUI:
                 json.dump(config, f)
         except Exception as e:
             print(f"Could not save configuration: {e}")
-    
     def load_config(self):
         """Load host and port from configuration file if it exists."""
         try:

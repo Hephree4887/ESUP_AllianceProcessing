@@ -21,6 +21,7 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Deployment\Source\JSONtoMySQL.py" />
     <Compile Include="JSONtoMySQL.py" />
   </ItemGroup>
   <ItemGroup>
@@ -39,6 +40,7 @@
     <Content Include="build\JSONtoMySQL\warn-JSONtoMySQL.txt" />
     <Content Include="build\JSONtoMySQL\xref-JSONtoMySQL.html" />
     <Content Include="Deployment\Documentation\RELEASE_NOTES.txt" />
+    <Content Include="Deployment\Documentation\Sample_Export_CSV\Alliance_STCounty_ESUP_GoLive_20251105.csv" />
     <Content Include="Deployment\Documentation\Sample_Export_JSON\STCounty1.json" />
     <Content Include="Deployment\Documentation\Sample_Export_JSON\STCounty2.json" />
     <Content Include="Deployment\Documentation\Sample_Export_JSON\STCounty3.json" />
@@ -53,7 +55,6 @@
     <Content Include="Deployment\Documentation\README.MD" />
     <Content Include="dist\importer_config.json" />
     <Content Include="dist\JSONtoMySQL.exe" />
-    <Content Include="JSONtoMySQL.py_ORIG" />
     <Content Include="JSONtoMySQL.spec" />
     <Content Include="Documentation\MSSQLVersionOfExport.sql" />
     <Content Include="README.MD" />
