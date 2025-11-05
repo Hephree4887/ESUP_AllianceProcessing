@@ -1281,6 +1281,7 @@ class ImporterGUI:
         # Disable buttons during import
         self.execute_btn.config(state="disabled")
         self.export_btn.config(state="disabled")
+        self.tmp_alliance_btn.config(state="disabled")
         self.test_conn_btn.config(state="disabled")
         
         # Clear status window and reset progress bar
@@ -1317,6 +1318,7 @@ class ImporterGUI:
         # Disable buttons during export
         self.execute_btn.config(state="disabled")
         self.export_btn.config(state="disabled")
+        self.tmp_alliance_btn.config(state="disabled")
         self.test_conn_btn.config(state="disabled")
         
         # Clear status window and reset progress bar
@@ -1415,6 +1417,7 @@ class ImporterGUI:
             # Re-enable buttons
             self.execute_btn.config(state="normal")
             self.export_btn.config(state="normal")
+            self.tmp_alliance_btn.config(state="normal")
             self.test_conn_btn.config(state="normal")
     def run_export(self, project_name: str):
         """
@@ -1497,6 +1500,7 @@ class ImporterGUI:
             # Re-enable buttons
             self.execute_btn.config(state="normal")
             self.export_btn.config(state="normal")
+            self.tmp_alliance_btn.config(state="normal")
             self.test_conn_btn.config(state="normal")
     def execute_tmp_alliance_export(self):
         """Execute the tmp_Alliance export process."""
