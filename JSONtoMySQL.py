@@ -1092,7 +1092,7 @@ class ImporterGUI:
         # Export tmp_Alliance button
         self.tmp_alliance_btn = tk.Button(
             self.root,
-            text="Scenario 1: Export tmp_Alliance to CSV or JSON",
+            text="Scenario 1: Export tmp_Alliance to CSV and JSON",
             command=self.execute_tmp_alliance_export,
             bg="#FF9800",  # Orange color to distinguish it
             fg="white",
