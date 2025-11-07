@@ -21,10 +21,58 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Deployment\Source\JSONtoMySQL.py" />
     <Compile Include="JSONtoMySQL.py" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="README.MD" />
+    <Content Include="build\JSONtoMySQL\Analysis-00.toc" />
+    <Content Include="build\JSONtoMySQL\base_library.zip" />
+    <Content Include="build\JSONtoMySQL\EXE-00.toc" />
+    <Content Include="build\JSONtoMySQL\JSONtoMySQL.pkg" />
+    <Content Include="build\JSONtoMySQL\localpycs\pyimod01_archive.pyc" />
+    <Content Include="build\JSONtoMySQL\localpycs\pyimod02_importers.pyc" />
+    <Content Include="build\JSONtoMySQL\localpycs\pyimod03_ctypes.pyc" />
+    <Content Include="build\JSONtoMySQL\localpycs\pyimod04_pywin32.pyc" />
+    <Content Include="build\JSONtoMySQL\localpycs\struct.pyc" />
+    <Content Include="build\JSONtoMySQL\PKG-00.toc" />
+    <Content Include="build\JSONtoMySQL\PYZ-00.pyz" />
+    <Content Include="build\JSONtoMySQL\PYZ-00.toc" />
+    <Content Include="build\JSONtoMySQL\warn-JSONtoMySQL.txt" />
+    <Content Include="build\JSONtoMySQL\xref-JSONtoMySQL.html" />
+    <Content Include="Deployment\Documentation\RELEASE_NOTES.txt" />
+    <Content Include="Deployment\Documentation\Sample_Export_CSV\Alliance_STCounty_ESUP_GoLive_20251105.csv" />
+    <Content Include="Deployment\Documentation\Sample_Export_JSON\STCounty1.json" />
+    <Content Include="Deployment\Documentation\Sample_Export_JSON\STCounty2.json" />
+    <Content Include="Deployment\Documentation\Sample_Export_JSON\STCounty3.json" />
+    <Content Include="Deployment\Documentation\Sample_Export_JSON\STCounty4.json" />
+    <Content Include="Deployment\Documentation\Sample_Export_JSON\STCounty5.json" />
+    <Content Include="Deployment\Documentation\Sample_Import_JSON\Alliance_Exception_case.json" />
+    <Content Include="Deployment\Documentation\Sample_Import_JSON\Alliance_Exception_charge.json" />
+    <Content Include="Deployment\Documentation\Sample_Import_JSON\Alliance_Exception_hearing.json" />
+    <Content Include="Deployment\Documentation\Sample_Import_JSON\Alliance_Exception_person.json" />
+    <Content Include="Deployment\Documentation\Sample_Import_JSON\Alliance_Exception_warrant.json" />
+    <Content Include="Deployment\Executable\importer_config.json" />
+    <Content Include="Deployment\Documentation\README.MD" />
+    <Content Include="dist\importer_config.json" />
+    <Content Include="dist\JSONtoMySQL.exe" />
+    <Content Include="JSONtoMySQL.spec" />
+    <Content Include="Documentation\MSSQLVersionOfExport.sql" />
+    <Content Include="requirements.txt" />
+    <Content Include="run.bat" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="build\" />
+    <Folder Include="build\JSONtoMySQL\" />
+    <Folder Include="build\JSONtoMySQL\localpycs\" />
+    <Folder Include="Deployment\" />
+    <Folder Include="Deployment\Documentation\" />
+    <Folder Include="Deployment\Documentation\Sample_Export_CSV\" />
+    <Folder Include="Deployment\Documentation\Sample_Export_JSON\" />
+    <Folder Include="Deployment\Documentation\Sample_Import_JSON\" />
+    <Folder Include="Deployment\Executable\" />
+    <Folder Include="Deployment\Source\" />
+    <Folder Include="dist\" />
+    <Folder Include="Documentation\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
